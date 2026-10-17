@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>字句解析01</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='8' width='56' height='48' rx='6' fill='%23a3532c'/%3E%3Ctext x='32' y='44' font-size='30' text-anchor='middle' fill='%23f7f3ea' font-family='serif'%3Ed%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --paper:#f7f3ea; --ink:#26221c; --ink2:#5c5346; --line:#e0d8c8;
+    --accent:#a3532c; --accent-soft:#f0e2d4;
+    --c1:#f3ead8; --c2:#e6e9d8; --c3:#d8e2ea; --dash:#948c7d; --gray-bg:#f0f0f0;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--paper); color:var(--ink);
+    font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP","Songti SC",serif;
+    line-height:1.75; font-size:17px;
+  }
+  .wrap{max-width:820px; margin:0 auto; padding:0 24px 120px;}
+  /* 顶部导航 */
+  nav.toc{
+    position:sticky; top:0; z-index:10;
+    background:var(--paper); border-bottom:1px solid var(--line);
+    padding:10px 24px; display:flex; gap:18px; overflow-x:auto;
+  }
+  nav.toc a{
+    color:var(--ink2); text-decoration:none; font-size:14px; white-space:nowrap;
+    font-family:"Hiragino Sans","Noto Sans JP",sans-serif;
+  }
+  nav.toc a:hover{color:var(--accent);}
+  /* 章标题（母稿原文标题） */
+  h1{
+    font-size:34px; font-weight:900; letter-spacing:.04em;
+    padding-top:36px; margin-bottom:6px;
+  }
+  h2{
+    font-size:24px; font-weight:800; margin:44px 0 14px;
+    padding-left:12px; border-left:4px solid var(--accent);
+  }
+  h3{font-size:19px; font-weight:700; margin:28px 0 10px;}
+  p{margin:12px 0;}
+  strong{color:var(--accent);}
+  blockquote.quote{
+    margin:18px 0 30px; padding:16px 20px;
+    background:var(--accent-soft); border-radius:8px;
+    color:var(--ink2); font-style:normal; line-height:1.9;
+  }
+  blockquote.quote p{margin:2px 0;}
+  blockquote.quote .src{text-align:right; margin-top:6px;}
+  hr.sep{border:none; border-top:1px solid var(--line); margin:34px 0;}
+  /* 代码块：原样保留母稿内容 */
+  pre.code{
+    background:#efe9dc; border:1px solid var(--line); border-radius:8px;
+    padding:16px 18px; overflow-x:auto; margin:14px 0;
+    font-family:"SF Mono",Menlo,Consolas,"PingFang SC",monospace;
+    font-size:14.5px; line-height:1.65;
+  }
+  pre.code code{font-family:inherit; font-size:inherit;}
+  pre.ascii{
+    background:transparent; border:none; padding:6px 2px; overflow-x:auto;
+    font-family:"SF Mono",Menlo,Consolas,monospace; font-size:14px; line-height:1.5;
+  }
+  /* 表格 */
+  table{
+    width:100%; border-collapse:collapse; table-layout:fixed;
+    margin:16px 0; font-size:15px;
+  }
+  table th{
+    background:var(--c1); text-align:left; font-weight:700;
+    padding:9px 12px; border:1px solid var(--line);
+  }
+  table td{padding:8px 12px; border:1px solid var(--line); vertical-align:top;}
+  table code{font-family:Menlo,Consolas,monospace; font-size:13.5px;}
+  /* 内联 SVG 图表：窄屏横向滚动，保持可读 */
+  .fig{margin:20px 0; }
+  .fig .frame{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  .fig svg{display:block; min-width:680px; width:100%; height:auto;}
+  .fig .cap{
+    font-size:13.5px; color:var(--ink2); margin-top:8px;
+    font-family:"Hiragino Sans","Noto Sans JP",sans-serif;
+  }
+  .fnode rect,.fnode ellipse{stroke:var(--ink); stroke-width:1.3;}
+  .fnode .label{font-family:"Hiragino Sans","Noto Sans JP","PingFang SC",sans-serif; fill:var(--ink);}
+  .fnode .lbl-s{font-size:13px;} .fnode .lbl-m{font-size:14px;} .fnode .lbl-l{font-size:15px;}
+  .fedge path,.fedge line{stroke:var(--ink); stroke-width:1.6; fill:none;}
+  .fedge .edge-tag{font-family:"Hiragino Sans","Noto Sans JP",sans-serif; fill:var(--ink2); font-size:13px;}
+  .fdash path{stroke:var(--dash); stroke-dasharray:7 5;}
+  .fhot path,.fhot line{stroke:var(--accent);}
+  .fhot .edge-tag{fill:var(--accent);}
+  .gold{
+    margin:18px 0; padding:14px 18px; background:var(--accent-soft);
+    border-left:4px solid var(--accent); border-radius:0 8px 8px 0;
+    font-size:18px;
+  }
+  footer{margin-top:60px; padding-top:18px; border-top:1px solid var(--line); color:var(--ink2); font-size:13.5px;}
+  @media (max-width:560px){
+    body{font-size:16px;}
+    h1{font-size:28px;}
+    h2{font-size:21px;}
+    .wrap{padding:0 16px 90px;}
+  }
+  @media print{
+    body{background:#fff;}
+    nav.toc{display:none;}
+    .fig .frame{overflow:visible;}
+    .fig svg{min-width:0; width:100%;}
+  }
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <a href="#value">まず ValueT から</a>
+  <a href="#reader">文字ストリーム</a>
+  <a href="#lexer">文字ストリーム -&gt; Token</a>
+  <a href="#next">続き</a>
+  <a href="../lexer01.html" style="margin-left:auto;color:var(--accent)">中文</a>
+  <a href="../en/lexer01.html">English</a>
+</nav>
+
+<main class="wrap">
+
+<h1>字句解析01</h1>
+
+<blockquote class="quote">
+  <p>道の道とすべきは、常の道に非ず。</p>
+  <p>名の名とすべきは、常の名に非ず。</p>
+  <p>無は天地の始めを名づけ、</p>
+  <p>有は万物の母を名づく。</p>
+  <p>故に常に無にして、以てその妙を観んと欲し、</p>
+  <p>常に有にして、以てその徼を観んと欲す。</p>
+  <p>此の両者は、同じく出でて名を異にす。</p>
+  <p>同じく之を玄と謂う。</p>
+  <p>玄の又玄、衆妙の門。</p>
+  <p class="src">——老子『道徳経』</p>
+</blockquote>
+
+<hr class="sep">
+
+<p>字句解析は全体として一本のパイプラインだ。文字が入り、トークンが出て、最後に値になる。</p>
+
+<pre class="ascii"><code>文字ストリーム --&gt; token --&gt; ValueT</code></pre>
+
+<p>三つの段階に、それぞれ主役がいる：</p>
+
+<div class="fig">
+  <div class="frame">
+  <svg viewBox="0 0 900 180" role="img" aria-label="文字ストリームからtoken、ValueTへのパイプライン">
+    <g class="fnode">
+      <rect x="40"  y="45" width="230" height="90" rx="10" fill="#f3ead8"/>
+      <text class="label lbl-m" x="155" y="88" text-anchor="middle">文字ストリーム</text>
+      <text class="label lbl-s" x="155" y="110" text-anchor="middle">ソースコードのテキスト</text>
+    </g>
+    <g class="fnode">
+      <rect x="345" y="45" width="230" height="90" rx="10" fill="#e6e9d8"/>
+      <text class="label lbl-m" x="460" y="80" text-anchor="middle">token</text>
+      <text class="label lbl-s" x="460" y="102" text-anchor="middle">Lexer::dLex() が分類</text>
+    </g>
+    <g class="fnode">
+      <rect x="650" y="45" width="210" height="90" rx="10" fill="#d8e2ea"/>
+      <text class="label lbl-l" x="755" y="93" text-anchor="middle">ValueT</text>
+    </g>
+    <g class="fedge">
+      <path d="M270 90 H 345"/>
+      <text class="edge-tag" x="307" y="75" text-anchor="middle">1文字ずつ吐き出す</text>
+    </g>
+    <g class="fedge">
+      <path d="M575 90 H 650"/>
+      <text class="edge-tag" x="612" y="75" text-anchor="middle">値の構築</text>
+    </g>
+  </svg>
+  </div>
+</div>
+
+<hr class="sep">
+
+<h2 id="value">まず ValueT から</h2>
+
+<pre class="code"><code>struct ValueT {
+  ValueU v;
+  byte t;
+};</code></pre>
+
+<p>v は全型の union だ。基本型(num, char, ...)とポインタ型(ref)を格納する。</p>
+
+<pre class="code"><code>union ValueU {
+  RefPtr p;
+  BasicNum num;
+  uchar c;
+};
+union BasicNum {
+  scm_int i; // integer
+  double r; // real
+};
+struct RefObject {
+  ...
+  RefPtr gcnxt;
+};
+typedef RefObject* RefPtr;
+typedef uchar scm_char;
+typedef long scm_int;</code></pre>
+
+<p><code>RefObject::gcnxt</code> は GC 用だ。<code>new</code> したオブジェクトはすべてこのフィールドで片方向リストにつながれる。</p>
+
+<pre class="ascii"><code>オブジェクトA --gcnxt--&gt; オブジェクトB --gcnxt--&gt; オブジェクトC --gcnxt--&gt; NULL
+      ^                              ^
+      └────── すべてのヒープオブジェクトがこの1本のチェーンに ──────┘</code></pre>
+
+<p><code>ValueT::t</code> は型を表し、型に応じて <code>ValueU</code> のどのフィールドが意味を持つかを決める。</p>
+
+<pre class="code"><code>enum ValueTEnum {
+  ...
+  VT_NULL, // nil or null
+  VT_NUM_INTEGER,
+  VT_NUM_REAL,
+  VT_CHAR,
+  VT_REF,
+  ...
+};</code></pre>
+
+<p>この「型 &#8594; フィールド」の対応表こそ、読み取り器が値を構築するときに手にする照合表だ：</p>
+
+<table>
+  <colgroup><col style="width:26%"><col style="width:22%"><col style="width:52%"></colgroup>
+  <thead><tr><th>型</th><th>使うフィールド</th><th>中身</th></tr></thead>
+  <tbody>
+    <tr><td><code>VT_NUM_INTEGER</code></td><td><code>v.num.i</code></td><td>整数</td></tr>
+    <tr><td><code>VT_NUM_REAL</code></td><td><code>v.num.r</code></td><td>実数</td></tr>
+    <tr><td><code>VT_CHAR</code></td><td><code>v.c</code></td><td>文字</td></tr>
+    <tr><td><code>VT_REF</code></td><td><code>v.p</code></td><td>参照（GC チェーン上のオブジェクトを指す）</td></tr>
+    <tr><td><code>...</code></td><td>—</td><td>その他の型は以降の記事で一つずつ展開</td></tr>
+  </tbody>
+</table>
+
+<p><code>#\a</code> を読めば <code>v.c</code> に文字を入れ、数字を読めば <code>v.num</code> に数値を入れ、<code>(quote ...)</code>
+を読めば <code>v.p</code> にヒープオブジェクトを入れる——<strong>t が読み方を決め、v が読む内容を決める</strong>。</p>
+
+<hr class="sep">
+
+<h2 id="reader">文字ストリーム</h2>
+
+<p><code>Reader</code> 型を抽象化して、文字列、REPL、ファイル、さらにはユーザー定義のネットワークデータまでサポートする。</p>
+
+<pre class="code"><code>class Reader {
+public:
+  virtual ~Reader() {}
+  virtual int nextc() = 0;
+  ...
+};</code></pre>
+
+<p><code>nextc()</code> が問うのはただ一つ：次の文字は何か。出所は問わない——</p>
+
+<div class="fig">
+  <div class="frame">
+  <svg viewBox="0 0 900 270" role="img" aria-label="Reader の4つの入力元">
+    <g class="fnode">
+      <rect x="20" y="25" width="200" height="44" rx="8" fill="#f3ead8"/>
+      <text class="label lbl-m" x="120" y="53" text-anchor="middle">文字列</text>
+    </g>
+    <g class="fnode">
+      <rect x="20" y="85" width="200" height="44" rx="8" fill="#f3ead8"/>
+      <text class="label lbl-m" x="120" y="113" text-anchor="middle">REPL の1行入力</text>
+    </g>
+    <g class="fnode">
+      <rect x="20" y="145" width="200" height="44" rx="8" fill="#f3ead8"/>
+      <text class="label lbl-m" x="120" y="173" text-anchor="middle">ファイル</text>
+    </g>
+    <g class="fnode fdash">
+      <rect x="20" y="205" width="200" height="44" rx="8" fill="#f0f0f0" stroke-dasharray="6 5"/>
+      <text class="label lbl-m" x="120" y="233" text-anchor="middle">将来のネットワークデータ</text>
+    </g>
+    <g class="fnode">
+      <rect x="360" y="95" width="200" height="80" rx="10" fill="#e6e9d8"/>
+      <text class="label lbl-l" x="460" y="132" text-anchor="middle">Reader::nextc()</text>
+      <text class="label lbl-s" x="460" y="154" text-anchor="middle">次の文字は何か？</text>
+    </g>
+    <g class="fnode">
+      <rect x="670" y="95" width="210" height="80" rx="10" fill="#d8e2ea"/>
+      <text class="label lbl-m" x="775" y="138" text-anchor="middle">Lexer はこの1つの動作にだけ依存する</text>
+    </g>
+    <g class="fedge">
+      <path d="M220 47 H 360"/>
+      <path d="M220 107 H 360"/>
+      <path d="M220 167 H 360"/>
+    </g>
+    <g class="fedge fdash">
+      <path d="M220 227 H 360"/>
+    </g>
+    <g class="fedge">
+      <path d="M560 135 H 670"/>
+    </g>
+    <g class="fedge">
+      <path d="M220 227 H 290 Q 330 227 330 200" fill="none" opacity="0"/>
+    </g>
+    <text class="edge-tag" x="300" y="215" text-anchor="middle" fill="#948c7d">ユーザー定義</text>
+  </svg>
+  </div>
+</div>
+
+<p>文字列も REPL もファイルも、将来ありうるネットワークデータも、入力は一つの動作に抽象される：
+<strong>次の文字を吐き出す</strong>。字句解析器は、文字がメモリから取り出されたのか、ディスクから齧り取られたのかを気にしない。</p>
+
+<p>文字列を例にしよう：</p>
+
+<pre class="code"><code>class ReaderS : public Reader {
+public:
+  ReaderS(const char* p): buff(p), n(0) {
+    size = strlen(p);
+  }
+
+  virtual int nextc() { return n &lt; size ? buff[n++] : -1; }
+  ...
+
+  const char* buff;
+  int n;
+  int size;
+};</code></pre>
+
+<p><code>ReaderS</code> を例にすると、<code>ReaderS::size</code> は <code>buff</code> の長さ、<code>ReaderS::n</code> は次に読む文字（-1 を返せば末尾）、
+<code>ReaderS::buff</code> は文字列を指し、その寿命は外部の呼び出し側が管理する。
+ただし、使い方はだいたい次の通りだ：</p>
+
+<pre class="code"><code>const char* p = "(define a 2)";
+ReaderS s(p);
+...</code></pre>
+
+<p>ローカル変数一つで十分。特別気にする必要はない。非同期にする場合を除けば——今は考えなくていい。</p>
+
+<p>三つのフィールドはちょうど「残りはいくつか、どこまで読んだか、次は誰を読むか」に対応する：</p>
+
+<pre class="ascii"><code>buff ──&#9656; "(define a 2)"
+          &#8593;      &#8593;
+        n = 0    size = 11
+        （次に読む文字）   （全体の長さ）</code></pre>
+
+<hr class="sep">
+
+<h2 id="lexer">次が本題：文字ストリーム -&gt; Token</h2>
+
+<p>上の <code>Reader</code> と組み合わせて字句解析を行う <code>Lexer</code> クラスが必要だ。</p>
+
+<pre class="code"><code>class Lexer {
+public:
+  ...
+  void nextc() { curchar = reader-&gt;nextc(); }
+  int dLex();
+  ...
+  Reader* r;
+  int curchar;
+  ...
+};</code></pre>
+
+<p><code>Lexer::curchar</code> は現在読み取った文字だ。<code>Lexer::dLex</code> はそれを使って今の文字がどのトークン型か(int, string, symbol, char, ...)を判断する。</p>
+
+<p><code>nextc()</code> は口、<code>curchar</code> は口にくわえた文字、<code>dLex()</code> は頭脳——<code>curchar</code>
+を見てどう分類するかを決める。Token 型について：</p>
+
+<pre class="code"><code>enum TokenType {
+  TOKEN_UNKNOWN,
+  TOKEN_END,
+  ...
+  TOKEN_DOT,
+  ...
+  TOKEN_LEFT_PAREN,
+  TOKEN_RIGHT_PAREN,
+  ...
+  TOKEN_MAX,
+};</code></pre>
+
+<p>今は <code>\(</code> <code>\)</code> と <code>\.</code> だけ気にすればよい：</p>
+
+<table>
+  <colgroup><col style="width:30%"><col style="width:16%"><col style="width:54%"></colgroup>
+  <thead><tr><th>token</th><th>対応する文字</th><th>意味</th></tr></thead>
+  <tbody>
+    <tr><td><code>TOKEN_LEFT_PAREN</code></td><td><code>(</code></td><td>リストの開始</td></tr>
+    <tr><td><code>TOKEN_RIGHT_PAREN</code></td><td><code>)</code></td><td>リストの終了</td></tr>
+    <tr><td><code>TOKEN_DOT</code></td><td><code>.</code></td><td>ドット対のドット（<code>(a . b)</code>）</td></tr>
+  </tbody>
+</table>
+
+<p>残りの型（数字、文字列、シンボル、文字……）は <code>...</code> に予約しておき、以降の記事で一つずつ取り出す。</p>
+
+<p><code>Lexer::dLex</code> は巨大な switch case だ。</p>
+
+<pre class="code"><code>int Lexer::dLex()
+{
+  int token = TOKEN_UNKNOWN;
+ loop:
+  switch(curchar) {
+  case READ_END:
+    return TOKEN_END;
+  case '\n': case '\r':
+    plusline();
+    goto loop;
+  case ' ': case '\f': case '\t': case '\v':
+    nextc();
+    goto loop;
+  case ';':
+    do {
+      nextc();
+    } while(curchar != READ_END &amp;&amp; curchar != '\n' &amp;&amp; curchar != '\r');
+    goto loop;
+  case '(':
+    token = TOKEN_LEFT_PAREN;
+    ...
+    nextc();
+    break;
+  case ')':
+	token = TOKEN_RIGHT_PAREN;
+    nextc();
+    break;
+  }
+}
+#define READ_END -1</code></pre>
+
+<p><code>READ_END</code>(-1) に当たれば <code>TOKEN_END</code> を返す。<code>;</code> は Lisp/Scheme のコメントで、現在位置から行末までがコメント。
+<code>(</code> と <code>)</code> はトークン型を設定してから一文字先に進む。
+改行でない空白はそのまま先を探索する。</p>
+
+<p>この switch を図にすると、ループの骨格がはっきりする：</p>
+
+<div class="fig">
+  <div class="frame">
+  <svg viewBox="0 0 900 570" role="img" aria-label="dLex switch ループ図">
+    <g class="fnode">
+      <ellipse cx="115" cy="45" rx="95" ry="26" fill="#e6e9d8"/>
+      <text class="label lbl-l" x="115" y="50" text-anchor="middle">dLex に入る</text>
+    </g>
+    <g class="fnode">
+      <rect x="330" y="20" width="240" height="60" rx="10" fill="#d8e2ea"/>
+      <text class="label lbl-l" x="450" y="55" text-anchor="middle">switch(curchar)</text>
+    </g>
+    <g class="fedge">
+      <path d="M210 45 H 330"/>
+    </g>
+    <g class="fnode">
+      <rect x="40" y="130" width="250" height="46" rx="8" fill="#f0f0f0"/>
+      <text class="label lbl-m" x="165" y="158" text-anchor="middle">READ_END (-1)</text>
+    </g>
+    <g class="fnode">
+      <rect x="40" y="215" width="250" height="46" rx="8" fill="#f3ead8"/>
+      <text class="label lbl-m" x="165" y="243" text-anchor="middle">TOKEN_END を返す</text>
+    </g>
+    <g class="fedge">
+      <path d="M330 50 L 290 152"/>
+      <text class="edge-tag" x="312" y="90" text-anchor="middle">READ_END</text>
+    </g>
+    <g class="fedge">
+      <path d="M165 176 L 165 215"/>
+    </g>
+    <g class="fnode">
+      <rect x="250" y="175" width="270" height="58" rx="8" fill="#f3ead8"/>
+      <text class="label lbl-m" x="385" y="198" text-anchor="middle">\n または \r 改行</text>
+      <text class="label lbl-s" x="385" y="220" text-anchor="middle">plusline() 行番号 +1</text>
+    </g>
+    <g class="fnode">
+      <rect x="250" y="255" width="270" height="58" rx="8" fill="#f3ead8"/>
+      <text class="label lbl-m" x="385" y="278" text-anchor="middle">空白 \f \t \v</text>
+      <text class="label lbl-s" x="385" y="300" text-anchor="middle">nextc() で1文字進む</text>
+    </g>
+    <g class="fnode">
+      <rect x="250" y="335" width="270" height="58" rx="8" fill="#f3ead8"/>
+      <text class="label lbl-m" x="385" y="358" text-anchor="middle">; コメント</text>
+      <text class="label lbl-s" x="385" y="380" text-anchor="middle">行末まで do nextc()</text>
+    </g>
+    <g class="fedge">
+      <path d="M390 80 L 385 175"/>
+      <path d="M450 80 L 385 255"/>
+      <path d="M510 80 L 385 335"/>
+      <path d="M520 204 Q 580 175 555 100 L 548 85"/>
+      <path d="M520 284 Q 585 245 562 100 L 555 85"/>
+      <path d="M520 364 Q 590 310 569 100 L 562 85"/>
+    </g>
+    <g class="fnode">
+      <rect x="640" y="175" width="230" height="58" rx="8" fill="#e6e9d8"/>
+      <text class="label lbl-m" x="755" y="198" text-anchor="middle">(  TOKEN_LEFT_PAREN</text>
+      <text class="label lbl-s" x="755" y="220" text-anchor="middle">nextc()</text>
+    </g>
+    <g class="fnode">
+      <rect x="640" y="255" width="230" height="58" rx="8" fill="#e6e9d8"/>
+      <text class="label lbl-m" x="755" y="278" text-anchor="middle">)  TOKEN_RIGHT_PAREN</text>
+      <text class="label lbl-s" x="755" y="300" text-anchor="middle">nextc()</text>
+    </g>
+    <g class="fedge">
+      <path d="M570 50 L 755 175"/>
+      <path d="M570 60 L 755 255"/>
+    </g>
+    <g class="fnode">
+      <rect x="640" y="335" width="230" height="58" rx="8" fill="#d8e2ea"/>
+      <text class="label lbl-m" x="755" y="366" text-anchor="middle">break → トークンを持って抜ける</text>
+    </g>
+    <g class="fedge">
+      <path d="M755 233 L 755 335"/>
+      <path d="M755 313 L 755 335"/>
+    </g>
+    <g class="fnode fdash">
+      <rect x="250" y="440" width="270" height="66" rx="8" fill="#f0f0f0" stroke-dasharray="6 5"/>
+      <text class="label lbl-m" x="385" y="463" text-anchor="middle">クォート / 数字 / ドット / # / シンボル</text>
+      <text class="label lbl-s" x="385" y="486" text-anchor="middle">—— 以降の記事で展開</text>
+    </g>
+    <g class="fedge fdash">
+      <path d="M520 473 Q 600 430 550 100 L 543 85"/>
+      <text class="edge-tag" x="575" y="280" text-anchor="middle">同様に nextc() + goto loop または break</text>
+    </g>
+  </svg>
+  </div>
+</div>
+
+<p>三種類の文字の待遇の違いに注目しよう：</p>
+
+<ul style="margin:12px 0 12px 1.4em;">
+  <li><strong>空白とコメント</strong>：トークンを生まず、ただの「掃除」。処理後は <code>loop</code> に戻って次の文字を見る——透明だ。</li>
+  <li><strong>改行</strong>：同じだが、もう一つだけ違う——行番号 +1（後でエラー報告に行番号が要るから）。</li>
+  <li><strong><code>(</code> <code>)</code></strong>：トークンを生む。型を設定し、1文字進み、<code>break</code> で switch を抜けて、トークンを持って返る。</li>
+</ul>
+
+<p>つまり dLex の本質は：<strong>ループで意味のない文字を飛ばし、意味のある文字に当たったらトークンに切り出して去る。</strong></p>
+
+<p>改行については特に説明が必要だ。面白い（Lua 参照）：</p>
+
+<pre class="code"><code>void Lexer::plusline()
+{
+  ...
+  int old = curchar;
+  nextc();
+  // \n\r or \r\n
+  // not \n\n
+  if ((curchar == '\n' || curchar == '\r') &amp;&amp; curchar != old)
+    nextc();
+}</code></pre>
+
+<pre class="ascii"><code>\r\n   -&gt; 行番号 +1
+\n\r   -&gt; 行番号 +1
+\n\n   -&gt; 行番号 +2
+\r\r   -&gt; 行番号 +2</code></pre>
+
+<div class="fig">
+  <div class="frame">
+  <svg viewBox="0 0 900 250" role="img" aria-label="改行イベント判定図">
+    <g class="fnode">
+      <rect x="30" y="80" width="220" height="90" rx="10" fill="#f3ead8"/>
+      <text class="label lbl-m" x="140" y="115" text-anchor="middle">改行を読む</text>
+      <text class="label lbl-m" x="140" y="140" text-anchor="middle">\n または \r</text>
+    </g>
+    <g class="fnode">
+      <polygon points="330,120 450,50 570,120 450,190" fill="#e6e9d8"/>
+      <text class="label lbl-m" x="450" y="108" text-anchor="middle">次の文字</text>
+      <text class="label lbl-m" x="450" y="130" text-anchor="middle">も改行？</text>
+      <text class="label lbl-m" x="450" y="152" text-anchor="middle">しかも &#8800; 直前のもの？</text>
+    </g>
+    <g class="fnode">
+      <rect x="660" y="40" width="210" height="70" rx="10" fill="#f3ead8"/>
+      <text class="label lbl-m" x="765" y="66" text-anchor="middle">もう1文字飲み込む</text>
+      <text class="label lbl-s" x="765" y="90" text-anchor="middle">同じイベント、行番号は +1 だけ</text>
+    </g>
+    <g class="fnode">
+      <rect x="660" y="150" width="210" height="70" rx="10" fill="#f3ead8"/>
+      <text class="label lbl-m" x="765" y="176" text-anchor="middle">イベント終了</text>
+      <text class="label lbl-s" x="765" y="200" text-anchor="middle">行番号は +1 済み</text>
+    </g>
+    <g class="fedge">
+      <path d="M250 125 H 330"/>
+    </g>
+    <g class="fedge">
+      <path d="M570 105 L 660 75"/>
+      <text class="edge-tag" x="615" y="80" text-anchor="middle">はい</text>
+    </g>
+    <g class="fedge">
+      <path d="M570 135 L 660 185"/>
+      <text class="edge-tag" x="615" y="160" text-anchor="middle">いいえ</text>
+    </g>
+  </svg>
+  </div>
+</div>
+
+<p><code>\r\n</code> は<strong>一つの</strong>改行イベント（Windows ファイル）、<code>\n\r</code> も<strong>一つ</strong>（古い Mac）。だからどちらも +1 だけ。
+<code>\n\n</code> は独立した二つのイベントで +2。「新しい文字も改行で、かつ直前の文字と異なる」という判定——たった1行で、三つのプラットフォームを全部片付ける。</p>
+
+<hr class="sep">
+
+<h2 id="next">続き</h2>
+
+<p>新しい Token 型を足すのは、<code>Lexer::dLex</code> の switch に case を追加するだけだ。</p>
+
+</main>
+</body>
+</html>

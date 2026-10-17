@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lexical Analysis 01</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='8' width='56' height='48' rx='6' fill='%23a3532c'/%3E%3Ctext x='32' y='44' font-size='30' text-anchor='middle' fill='%23f7f3ea' font-family='serif'%3Ed%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --paper:#f7f3ea; --ink:#26221c; --ink2:#5c5346; --line:#e0d8c8;
+    --accent:#a3532c; --accent-soft:#f0e2d4;
+    --c1:#f3ead8; --c2:#e6e9d8; --c3:#d8e2ea; --dash:#948c7d; --gray-bg:#f0f0f0;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--paper); color:var(--ink);
+    font-family:Georgia,"Noto Serif","Source Han Serif SC",serif;
+    line-height:1.75; font-size:17px;
+  }
+  .wrap{max-width:820px; margin:0 auto; padding:0 24px 120px;}
+  /* 顶部导航 */
+  nav.toc{
+    position:sticky; top:0; z-index:10;
+    background:var(--paper); border-bottom:1px solid var(--line);
+    padding:10px 24px; display:flex; gap:18px; overflow-x:auto;
+  }
+  nav.toc a{
+    color:var(--ink2); text-decoration:none; font-size:14px; white-space:nowrap;
+    font-family:"Helvetica Neue",Arial,"PingFang SC",sans-serif;
+  }
+  nav.toc a:hover{color:var(--accent);}
+  /* 章标题（母稿原文标题） */
+  h1{
+    font-size:34px; font-weight:900; letter-spacing:.04em;
+    padding-top:36px; margin-bottom:6px;
+  }
+  h2{
+    font-size:24px; font-weight:800; margin:44px 0 14px;
+    padding-left:12px; border-left:4px solid var(--accent);
+  }
+  h3{font-size:19px; font-weight:700; margin:28px 0 10px;}
+  p{margin:12px 0;}
+  strong{color:var(--accent);}
+  blockquote.quote{
+    margin:18px 0 30px; padding:16px 20px;
+    background:var(--accent-soft); border-radius:8px;
+    color:var(--ink2); font-style:italic; line-height:1.9;
+  }
+  blockquote.quote p{margin:2px 0;}
+  blockquote.quote .src{text-align:right; margin-top:6px; font-style:normal;}
+  hr.sep{border:none; border-top:1px solid var(--line); margin:34px 0;}
+  /* 代码块：原样保留母稿内容 */
+  pre.code{
+    background:#efe9dc; border:1px solid var(--line); border-radius:8px;
+    padding:16px 18px; overflow-x:auto; margin:14px 0;
+    font-family:"SF Mono",Menlo,Consolas,"PingFang SC",monospace;
+    font-size:14.5px; line-height:1.65;
+  }
+  pre.code code{font-family:inherit; font-size:inherit;}
+  pre.ascii{
+    background:transparent; border:none; padding:6px 2px; overflow-x:auto;
+    font-family:"SF Mono",Menlo,Consolas,monospace; font-size:14px; line-height:1.5;
+  }
+  /* 表格 */
+  table{
+    width:100%; border-collapse:collapse; table-layout:fixed;
+    margin:16px 0; font-size:15px;
+  }
+  table th{
+    background:var(--c1); text-align:left; font-weight:700;
+    padding:9px 12px; border:1px solid var(--line);
+  }
+  table td{padding:8px 12px; border:1px solid var(--line); vertical-align:top;}
+  table code{font-family:Menlo,Consolas,monospace; font-size:13.5px;}
+  /* 内联 SVG 图表：窄屏横向滚动，保持可读 */
+  .fig{margin:20px 0; }
+  .fig .frame{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  .fig svg{display:block; min-width:680px; width:100%; height:auto;}
+  .fig .cap{
+    font-size:13.5px; color:var(--ink2); margin-top:8px;
+    font-family:"Helvetica Neue",Arial,"PingFang SC",sans-serif;
+  }
+  .fnode rect,.fnode ellipse{stroke:var(--ink); stroke-width:1.3;}
+  .fnode .label{font-family:"Helvetica Neue",Arial,"PingFang SC",sans-serif; fill:var(--ink);}
+  .fnode .lbl-s{font-size:13px;} .fnode .lbl-m{font-size:14px;} .fnode .lbl-l{font-size:15px;}
+  .fedge path,.fedge line{stroke:var(--ink); stroke-width:1.6; fill:none;}
+  .fedge .edge-tag{font-family:"Helvetica Neue",Arial,sans-serif; fill:var(--ink2); font-size:12.5px;}
+  .fdash path{stroke:var(--dash); stroke-dasharray:7 5;}
+  .fhot path,.fhot line{stroke:var(--accent);}
+  .fhot .edge-tag{fill:var(--accent);}
+  .gold{
+    margin:18px 0; padding:14px 18px; background:var(--accent-soft);
+    border-left:4px solid var(--accent); border-radius:0 8px 8px 0;
+    font-size:18px;
+  }
+  footer{margin-top:60px; padding-top:18px; border-top:1px solid var(--line); color:var(--ink2); font-size:13.5px;}
+  @media (max-width:560px){
+    body{font-size:16px;}
+    h1{font-size:28px;}
+    h2{font-size:21px;}
+    .wrap{padding:0 16px 90px;}
+  }
+  @media print{
+    body{background:#fff;}
+    nav.toc{display:none;}
+    .fig .frame{overflow:visible;}
+    .fig svg{min-width:0; width:100%;}
+  }
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <a href="#value">ValueT first</a>
+  <a href="#reader">Character stream</a>
+  <a href="#lexer">Character stream -&gt; Token</a>
+  <a href="#next">What's next</a>
+  <a href="../lexer01.html" style="margin-left:auto;color:var(--accent)">中文</a>
+  <a href="../ja/lexer01.html">日本語</a>
+</nav>
+
+<main class="wrap">
+
+<h1>Lexical Analysis 01</h1>
+
+<blockquote class="quote">
+  <p>The Tao that can be told is not the eternal Tao.</p>
+  <p>The name that can be named is not the eternal name.</p>
+  <p>The nameless is the beginning of heaven and earth.</p>
+  <p>The named is the mother of ten thousand things.</p>
+  <p>Ever desireless, one can see the mystery.</p>
+  <p>Ever desiring, one can see the manifestations.</p>
+  <p>These two spring from the same source but differ in name;</p>
+  <p>this appears as darkness.</p>
+  <p>Darkness within darkness. The gate to all mystery.</p>
+  <p class="src">— Lao Tzu, <i>Tao Te Ching</i></p>
+</blockquote>
+
+<hr class="sep">
+
+<p>Lexical analysis as a whole is a pipeline: characters come in, tokens come out, and a value is built in the end.</p>
+
+<pre class="ascii"><code>character stream --&gt; token --&gt; ValueT</code></pre>
+
+<p>Three stages, each with one lead:</p>
+
+<div class="fig">
+  <div class="frame">
+  <svg viewBox="0 0 900 180" role="img" aria-label="Pipeline from character stream to token to ValueT">
+    <g class="fnode">
+      <rect x="40"  y="45" width="230" height="90" rx="10" fill="#f3ead8"/>
+      <text class="label lbl-m" x="155" y="88" text-anchor="middle">Character stream</text>
+      <text class="label lbl-s" x="155" y="110" text-anchor="middle">source text</text>
+    </g>
+    <g class="fnode">
+      <rect x="345" y="45" width="230" height="90" rx="10" fill="#e6e9d8"/>
+      <text class="label lbl-m" x="460" y="80" text-anchor="middle">token</text>
+      <text class="label lbl-s" x="460" y="102" text-anchor="middle">classified by Lexer::dLex()</text>
+    </g>
+    <g class="fnode">
+      <rect x="650" y="45" width="210" height="90" rx="10" fill="#d8e2ea"/>
+      <text class="label lbl-l" x="755" y="93" text-anchor="middle">ValueT</text>
+    </g>
+    <g class="fedge">
+      <path d="M270 90 H 345"/>
+      <text class="edge-tag" x="307" y="75" text-anchor="middle">char by char</text>
+    </g>
+    <g class="fedge">
+      <path d="M575 90 H 650"/>
+      <text class="edge-tag" x="612" y="75" text-anchor="middle">build value</text>
+    </g>
+  </svg>
+  </div>
+</div>
+
+<hr class="sep">
+
+<h2 id="value">ValueT first</h2>
+
+<pre class="code"><code>struct ValueT {
+  ValueU v;
+  byte t;
+};</code></pre>
+
+<p>v is the union of all value types: primitive types (num, char, ...) and pointer types (ref).</p>
+
+<pre class="code"><code>union ValueU {
+  RefPtr p;
+  BasicNum num;
+  uchar c;
+};
+union BasicNum {
+  scm_int i; // integer
+  double r; // real
+};
+struct RefObject {
+  ...
+  RefPtr gcnxt;
+};
+typedef RefObject* RefPtr;
+typedef uchar scm_char;
+typedef long scm_int;</code></pre>
+
+<p><code>RefObject::gcnxt</code> exists for the GC: every object created with <code>new</code> is hung onto a singly-linked list through this field.</p>
+
+<pre class="ascii"><code>object A --gcnxt--&gt; object B --gcnxt--&gt; object C --gcnxt--&gt; NULL
+      ^                              ^
+      └────── every heap object lives on this one list ──────┘</code></pre>
+
+<p><code>ValueT::t</code> is the type tag; depending on the type it decides which field of <code>ValueU</code> is meaningful.</p>
+
+<pre class="code"><code>enum ValueTEnum {
+  ...
+  VT_NULL, // nil or null
+  VT_NUM_INTEGER,
+  VT_NUM_REAL,
+  VT_CHAR,
+  VT_REF,
+  ...
+};</code></pre>
+
+<p>This "type &#8594; field" correspondence is the lookup table the reader holds when constructing values:</p>
+
+<table>
+  <colgroup><col style="width:26%"><col style="width:22%"><col style="width:52%"></colgroup>
+  <thead><tr><th>Type</th><th>Field used</th><th>What it holds</th></tr></thead>
+  <tbody>
+    <tr><td><code>VT_NUM_INTEGER</code></td><td><code>v.num.i</code></td><td>integer</td></tr>
+    <tr><td><code>VT_NUM_REAL</code></td><td><code>v.num.r</code></td><td>real</td></tr>
+    <tr><td><code>VT_CHAR</code></td><td><code>v.c</code></td><td>character</td></tr>
+    <tr><td><code>VT_REF</code></td><td><code>v.p</code></td><td>reference (to an object on the GC list)</td></tr>
+    <tr><td><code>...</code></td><td>—</td><td>the rest, covered one by one in later articles</td></tr>
+  </tbody>
+</table>
+
+<p>Reading <code>#\a</code> puts a character into <code>v.c</code>; reading a number puts a number into <code>v.num</code>; reading <code>(quote ...)</code>
+puts a heap object into <code>v.p</code> — <strong>t decides how to read, v decides what is read</strong>.</p>
+
+<hr class="sep">
+
+<h2 id="reader">Character stream</h2>
+
+<p>Abstract a <code>Reader</code> type to support strings, REPL, files, and even user-defined network data.</p>
+
+<pre class="code"><code>class Reader {
+public:
+  virtual ~Reader() {}
+  virtual int nextc() = 0;
+  ...
+};</code></pre>
+
+<p><code>nextc()</code> asks one question: what is the next character? It doesn't care who the source is —</p>
+
+<div class="fig">
+  <div class="frame">
+  <svg viewBox="0 0 900 270" role="img" aria-label="Reader four sources">
+    <g class="fnode">
+      <rect x="20" y="25" width="200" height="44" rx="8" fill="#f3ead8"/>
+      <text class="label lbl-m" x="120" y="53" text-anchor="middle">String</text>
+    </g>
+    <g class="fnode">
+      <rect x="20" y="85" width="200" height="44" rx="8" fill="#f3ead8"/>
+      <text class="label lbl-m" x="120" y="113" text-anchor="middle">REPL line input</text>
+    </g>
+    <g class="fnode">
+      <rect x="20" y="145" width="200" height="44" rx="8" fill="#f3ead8"/>
+      <text class="label lbl-m" x="120" y="173" text-anchor="middle">File</text>
+    </g>
+    <g class="fnode fdash">
+      <rect x="20" y="205" width="200" height="44" rx="8" fill="#f0f0f0" stroke-dasharray="6 5"/>
+      <text class="label lbl-m" x="120" y="233" text-anchor="middle">future network data</text>
+    </g>
+    <g class="fnode">
+      <rect x="360" y="95" width="200" height="80" rx="10" fill="#e6e9d8"/>
+      <text class="label lbl-l" x="460" y="132" text-anchor="middle">Reader::nextc()</text>
+      <text class="label lbl-s" x="460" y="154" text-anchor="middle">what is the next char?</text>
+    </g>
+    <g class="fnode">
+      <rect x="670" y="95" width="210" height="80" rx="10" fill="#d8e2ea"/>
+      <text class="label lbl-m" x="775" y="138" text-anchor="middle">Lexer depends on this one action</text>
+    </g>
+    <g class="fedge">
+      <path d="M220 47 H 360"/>
+      <path d="M220 107 H 360"/>
+      <path d="M220 167 H 360"/>
+    </g>
+    <g class="fedge fdash">
+      <path d="M220 227 H 360"/>
+    </g>
+    <g class="fedge">
+      <path d="M560 135 H 670"/>
+    </g>
+    <g class="fedge">
+      <path d="M220 227 H 290 Q 330 227 330 200" fill="none" opacity="0"/>
+    </g>
+    <text class="edge-tag" x="300" y="215" text-anchor="middle" fill="#948c7d">user-defined</text>
+  </svg>
+  </div>
+</div>
+
+<p>Strings, REPL, files, and network data that may come later — every input is abstracted into one action:
+<strong>spit out the next character</strong>. The lexer doesn't care whether a character was pulled from memory or gnawed off the disk.</p>
+
+<p>Using a string as the example:</p>
+
+<pre class="code"><code>class ReaderS : public Reader {
+public:
+  ReaderS(const char* p): buff(p), n(0) {
+    size = strlen(p);
+  }
+
+  virtual int nextc() { return n &lt; size ? buff[n++] : -1; }
+  ...
+
+  const char* buff;
+  int n;
+  int size;
+};</code></pre>
+
+<p>Taking <code>ReaderS</code> as the example: <code>ReaderS::size</code> is the length of <code>buff</code>, <code>ReaderS::n</code> is the next character to read (returning -1 marks the end),
+<code>ReaderS::buff</code> points at the string, and the external caller is responsible for its lifetime.
+But the usual usage is</p>
+
+<pre class="code"><code>const char* p = "(define a 2)";
+ReaderS s(p);
+...</code></pre>
+
+<p>A local variable is all you need; no special care is required unless you go asynchronous — not a concern for now.</p>
+
+<p>The three fields map exactly to "how much is left, where we are, who to read next":</p>
+
+<pre class="ascii"><code>buff ──&#9656; "(define a 2)"
+          &#8593;      &#8593;
+        n = 0    size = 11
+        (next char to read)   (total length)</code></pre>
+
+<hr class="sep">
+
+<h2 id="lexer">Next up — the heart of it: character stream -&gt; Token</h2>
+
+<p>A <code>Lexer</code> class works together with the <code>Reader</code> above to perform the lexical analysis.</p>
+
+<pre class="code"><code>class Lexer {
+public:
+  ...
+  void nextc() { curchar = reader-&gt;nextc(); }
+  int dLex();
+  ...
+  Reader* r;
+  int curchar;
+  ...
+};</code></pre>
+
+<p><code>Lexer::curchar</code> is the currently read character; <code>Lexer::dLex</code> uses it to decide what token type the current character is (int, string, symbol, char, ...).</p>
+
+<p><code>nextc()</code> is the mouth, <code>curchar</code> is the character held in the mouth, <code>dLex()</code> is the brain — it looks at <code>curchar</code>
+and decides how to classify it. About token types:</p>
+
+<pre class="code"><code>enum TokenType {
+  TOKEN_UNKNOWN,
+  TOKEN_END,
+  ...
+  TOKEN_DOT,
+  ...
+  TOKEN_LEFT_PAREN,
+  TOKEN_RIGHT_PAREN,
+  ...
+  TOKEN_MAX,
+};</code></pre>
+
+<p>For now we only care about <code>\(</code> <code>\)</code> and <code>\.</code>:</p>
+
+<table>
+  <colgroup><col style="width:30%"><col style="width:16%"><col style="width:54%"></colgroup>
+  <thead><tr><th>token</th><th>Character</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>TOKEN_LEFT_PAREN</code></td><td><code>(</code></td><td>list begins</td></tr>
+    <tr><td><code>TOKEN_RIGHT_PAREN</code></td><td><code>)</code></td><td>list ends</td></tr>
+    <tr><td><code>TOKEN_DOT</code></td><td><code>.</code></td><td>the dot in a dotted pair (<code>(a . b)</code>)</td></tr>
+  </tbody>
+</table>
+
+<p>The rest (numbers, strings, symbols, characters, ...) are just reserved in the <code>...</code>, to be covered one by one in later articles.</p>
+
+<p><code>Lexer::dLex</code> is one big switch-case.</p>
+
+<pre class="code"><code>int Lexer::dLex()
+{
+  int token = TOKEN_UNKNOWN;
+ loop:
+  switch(curchar) {
+  case READ_END:
+    return TOKEN_END;
+  case '\n': case '\r':
+    plusline();
+    goto loop;
+  case ' ': case '\f': case '\t': case '\v':
+    nextc();
+    goto loop;
+  case ';':
+    do {
+      nextc();
+    } while(curchar != READ_END &amp;&amp; curchar != '\n' &amp;&amp; curchar != '\r');
+    goto loop;
+  case '(':
+    token = TOKEN_LEFT_PAREN;
+    ...
+    nextc();
+    break;
+  case ')':
+	token = TOKEN_RIGHT_PAREN;
+    nextc();
+    break;
+  }
+}
+#define READ_END -1</code></pre>
+
+<p>On <code>READ_END</code> (-1) it returns <code>TOKEN_END</code>; <code>;</code> is the Lisp/Scheme comment — everything from the current position to the end of the line is a comment.
+For <code>(</code> and <code>)</code> it sets the token type, then reads one more character.
+Non-newline whitespace keeps moving forward.</p>
+
+<p>Walking this switch as a diagram makes the loop skeleton clear:</p>
+
+<div class="fig">
+  <div class="frame">
+  <svg viewBox="0 0 900 570" role="img" aria-label="dLex switch loop diagram">
+    <g class="fnode">
+      <ellipse cx="115" cy="45" rx="95" ry="26" fill="#e6e9d8"/>
+      <text class="label lbl-l" x="115" y="50" text-anchor="middle">enter dLex</text>
+    </g>
+    <g class="fnode">
+      <rect x="330" y="20" width="240" height="60" rx="10" fill="#d8e2ea"/>
+      <text class="label lbl-l" x="450" y="55" text-anchor="middle">switch(curchar)</text>
+    </g>
+    <g class="fedge">
+      <path d="M210 45 H 330"/>
+    </g>
+    <g class="fnode">
+      <rect x="40" y="130" width="250" height="46" rx="8" fill="#f0f0f0"/>
+      <text class="label lbl-m" x="165" y="158" text-anchor="middle">READ_END (-1)</text>
+    </g>
+    <g class="fnode">
+      <rect x="40" y="215" width="250" height="46" rx="8" fill="#f3ead8"/>
+      <text class="label lbl-m" x="165" y="243" text-anchor="middle">return TOKEN_END</text>
+    </g>
+    <g class="fedge">
+      <path d="M330 50 L 290 152"/>
+      <text class="edge-tag" x="312" y="90" text-anchor="middle">READ_END</text>
+    </g>
+    <g class="fedge">
+      <path d="M165 176 L 165 215"/>
+    </g>
+    <g class="fnode">
+      <rect x="250" y="175" width="270" height="58" rx="8" fill="#f3ead8"/>
+      <text class="label lbl-m" x="385" y="198" text-anchor="middle">\n or \r newline</text>
+      <text class="label lbl-s" x="385" y="220" text-anchor="middle">plusline() line number +1</text>
+    </g>
+    <g class="fnode">
+      <rect x="250" y="255" width="270" height="58" rx="8" fill="#f3ead8"/>
+      <text class="label lbl-m" x="385" y="278" text-anchor="middle">whitespace \f \t \v</text>
+      <text class="label lbl-s" x="385" y="300" text-anchor="middle">nextc() consume one more</text>
+    </g>
+    <g class="fnode">
+      <rect x="250" y="335" width="270" height="58" rx="8" fill="#f3ead8"/>
+      <text class="label lbl-m" x="385" y="358" text-anchor="middle">; comment</text>
+      <text class="label lbl-s" x="385" y="380" text-anchor="middle">do nextc() until end of line</text>
+    </g>
+    <g class="fedge">
+      <path d="M390 80 L 385 175"/>
+      <path d="M450 80 L 385 255"/>
+      <path d="M510 80 L 385 335"/>
+      <path d="M520 204 Q 580 175 555 100 L 548 85"/>
+      <path d="M520 284 Q 585 245 562 100 L 555 85"/>
+      <path d="M520 364 Q 590 310 569 100 L 562 85"/>
+    </g>
+    <g class="fnode">
+      <rect x="640" y="175" width="230" height="58" rx="8" fill="#e6e9d8"/>
+      <text class="label lbl-m" x="755" y="198" text-anchor="middle">(  TOKEN_LEFT_PAREN</text>
+      <text class="label lbl-s" x="755" y="220" text-anchor="middle">nextc()</text>
+    </g>
+    <g class="fnode">
+      <rect x="640" y="255" width="230" height="58" rx="8" fill="#e6e9d8"/>
+      <text class="label lbl-m" x="755" y="278" text-anchor="middle">)  TOKEN_RIGHT_PAREN</text>
+      <text class="label lbl-s" x="755" y="300" text-anchor="middle">nextc()</text>
+    </g>
+    <g class="fedge">
+      <path d="M570 50 L 755 175"/>
+      <path d="M570 60 L 755 255"/>
+    </g>
+    <g class="fnode">
+      <rect x="640" y="335" width="230" height="58" rx="8" fill="#d8e2ea"/>
+      <text class="label lbl-m" x="755" y="366" text-anchor="middle">break → leave with the token</text>
+    </g>
+    <g class="fedge">
+      <path d="M755 233 L 755 335"/>
+      <path d="M755 313 L 755 335"/>
+    </g>
+    <g class="fnode fdash">
+      <rect x="250" y="440" width="270" height="66" rx="8" fill="#f0f0f0" stroke-dasharray="6 5"/>
+      <text class="label lbl-m" x="385" y="463" text-anchor="middle">quote / number / dot / # / symbol</text>
+      <text class="label lbl-s" x="385" y="486" text-anchor="middle">— covered later</text>
+    </g>
+    <g class="fedge fdash">
+      <path d="M520 473 Q 600 430 550 100 L 543 85"/>
+      <text class="edge-tag" x="575" y="280" text-anchor="middle">same: nextc() + goto loop or break</text>
+    </g>
+  </svg>
+  </div>
+</div>
+
+<p>Note how three kinds of characters are treated differently:</p>
+
+<ul style="margin:12px 0 12px 1.4em;">
+  <li><strong>Whitespace and comments</strong>: produce no token, just "housekeeping". After handling, return to <code>loop</code> and look at the next character — they are transparent.</li>
+  <li><strong>Newlines</strong>: same as above, plus one extra thing — line number +1 (later error reports need line numbers).</li>
+  <li><strong><code>(</code> <code>)</code></strong>: produce tokens. Set the type, advance, <code>break</code> out of the switch, return with the token.</li>
+</ul>
+
+<p>So the essence of dLex is: <strong>skip meaningless characters in a loop, until you hit a meaningful one, cut it into a token and leave.</strong></p>
+
+<p>Newlines deserve a special note — this is fun (borrowed from Lua):</p>
+
+<pre class="code"><code>void Lexer::plusline()
+{
+  ...
+  int old = curchar;
+  nextc();
+  // \n\r or \r\n
+  // not \n\n
+  if ((curchar == '\n' || curchar == '\r') &amp;&amp; curchar != old)
+    nextc();
+}</code></pre>
+
+<pre class="ascii"><code>\r\n   -&gt; line number +1
+\n\r   -&gt; line number +1
+\n\n   -&gt; line number +2
+\r\r   -&gt; line number +2</code></pre>
+
+<div class="fig">
+  <div class="frame">
+  <svg viewBox="0 0 900 250" role="img" aria-label="Newline event decision diagram">
+    <g class="fnode">
+      <rect x="30" y="80" width="220" height="90" rx="10" fill="#f3ead8"/>
+      <text class="label lbl-m" x="140" y="115" text-anchor="middle">read a newline</text>
+      <text class="label lbl-m" x="140" y="140" text-anchor="middle">\n or \r</text>
+    </g>
+    <g class="fnode">
+      <polygon points="330,120 450,50 570,120 450,190" fill="#e6e9d8"/>
+      <text class="label lbl-m" x="450" y="108" text-anchor="middle">next character</text>
+      <text class="label lbl-m" x="450" y="130" text-anchor="middle">also a newline?</text>
+      <text class="label lbl-m" x="450" y="152" text-anchor="middle">and &#8800; the previous one?</text>
+    </g>
+    <g class="fnode">
+      <rect x="660" y="40" width="210" height="70" rx="10" fill="#f3ead8"/>
+      <text class="label lbl-m" x="765" y="66" text-anchor="middle">consume one more</text>
+      <text class="label lbl-s" x="765" y="90" text-anchor="middle">same event, line only +1</text>
+    </g>
+    <g class="fnode">
+      <rect x="660" y="150" width="210" height="70" rx="10" fill="#f3ead8"/>
+      <text class="label lbl-m" x="765" y="176" text-anchor="middle">event ends</text>
+      <text class="label lbl-s" x="765" y="200" text-anchor="middle">line already +1</text>
+    </g>
+    <g class="fedge">
+      <path d="M250 125 H 330"/>
+    </g>
+    <g class="fedge">
+      <path d="M570 105 L 660 75"/>
+      <text class="edge-tag" x="615" y="80" text-anchor="middle">yes</text>
+    </g>
+    <g class="fedge">
+      <path d="M570 135 L 660 185"/>
+      <text class="edge-tag" x="615" y="160" text-anchor="middle">no</text>
+    </g>
+  </svg>
+  </div>
+</div>
+
+<p><code>\r\n</code> is <strong>one</strong> newline event (Windows files); <code>\n\r</code> is also <strong>one</strong> (old Mac), so both only +1;
+<code>\n\n</code> is two separate events, +2. The check "the new character is also a newline and differs from the old one" — one line of code settles all three platforms.</p>
+
+<hr class="sep">
+
+<h2 id="next">What's next</h2>
+
+<p>Any new token type is just another case added to the switch in <code>Lexer::dLex</code>.</p>
+
+</main>
+</body>
+</html>

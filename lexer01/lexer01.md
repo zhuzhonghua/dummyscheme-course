@@ -1,5 +1,7 @@
 # 词法分析01
 
+> **语言/Language/言語：** [中文](lexer01.md) · [English](en/lexer01.md) · [日本語](ja/lexer01.md)
+
 > 道可道，非常道。
 > 名可名，非常名。
 > 无，名天地之始。
